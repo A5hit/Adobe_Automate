@@ -1,0 +1,7 @@
+.venv/
+.chrome-profile/
+.chrome-user-data/
+.pytest_cache/
+.idea/
+__pycache__/
+*.pyc
