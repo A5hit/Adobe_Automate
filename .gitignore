@@ -1,6 +1,7 @@
 .venv/
 .chrome-profile/
 .chrome-user-data/
+downloads/
 .pytest_cache/
 .idea/
 __pycache__/

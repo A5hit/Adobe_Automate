@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
@@ -23,7 +24,15 @@ def _playwright():
 @pytest.fixture(scope="session")
 def base_browser_context_args(base_url):
     """Common browser-context settings used by both ephemeral and persistent modes."""
-    return {"base_url": base_url}
+    return {"accept_downloads": True, "base_url": base_url}
+
+
+@pytest.fixture(scope="session")
+def download_dir() -> Path:
+    """Project-local directory where downloaded files are stored."""
+    path = Path(os.getenv("DOWNLOAD_DIR", "downloads")).resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 @pytest.fixture(scope="session")

@@ -1,4 +1,6 @@
-from playwright.sync_api import expect
+from pathlib import Path
+
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect
 
 from pages.base_page import BasePage
 
@@ -30,6 +32,17 @@ class LandingPage(BasePage):
         card = self.page.get_by_text("Create a poster", exact=True)
         expect(card).to_be_visible(timeout=5_000)
         card.click(timeout=5_000)
+        self.dismiss_skip_tour_if_visible()
+
+    def dismiss_skip_tour_if_visible(self) -> None:
+        skip_tour = self.page.get_by_text("Skip tour", exact=True)
+        try:
+            skip_tour.wait_for(state="visible", timeout=3_000)
+        except PlaywrightTimeoutError:
+            return
+        else:
+            skip_tour.click(timeout=5_000)
+            self.page.wait_for_load_state("domcontentloaded")
 
     def click_generate_template(self) -> None:
         button = self.page.get_by_text("Generate template", exact=True)
@@ -74,4 +87,10 @@ class LandingPage(BasePage):
     def click_dialog_download_button(self) -> None:
         button = self.page.locator("#dialog-download-btn").last
         expect(button).to_be_visible(timeout=30_000)
-        button.click(timeout=10_000)
+        # with self.page.expect_download(timeout=30_000) as download_info:
+        #     button.click(timeout=10_000)
+        #
+        # download = download_info.value
+        # target_path = download_dir / Path(download.suggested_filename).name
+        # target_path.parent.mkdir(parents=True, exist_ok=True)
+        # download.save_as(str(target_path))
