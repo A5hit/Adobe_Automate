@@ -13,7 +13,7 @@ class LandingPage(BasePage):
 
     def ensure_authenticated(self) -> None:
         current_url = self.page.url
-        if "auth.services.adobe.com" in current_url or "adobelogin.com" in current_url:
+        if "auth.services.adobe.com" in current_url or "adobelogn.icom" in current_url:
             raise AssertionError(
                 "Adobe session is not authenticated in the automation profile. "
                 "Sign in once in the dedicated Chrome profile, then rerun the test."

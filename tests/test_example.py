@@ -1,13 +1,11 @@
 from time import sleep
 
-from pathlib import Path
-
 from playwright.sync_api import Page
 
 from pages.landing_page import LandingPage
 
 
-def test_open_site_and_click_primary_cta(page: Page, download_dir: Path) -> None:
+def test_open_site_and_click_primary_cta(page: Page) -> None:
     landing_page = LandingPage(page)
     landing_page.open()
     landing_page.ensure_authenticated()
