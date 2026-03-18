@@ -21,7 +21,7 @@ def test_login(page: Page, account: dict[str, str]) -> None:
     if provider == "microsoft":
         login_page.microsoft_login_page(email, password)
     elif provider == "google":
-        login_page.google_login_page()
+        login_page.google_login_page(email, password)
     else:
         raise AssertionError(f"Unsupported identity provider: {provider}")
 

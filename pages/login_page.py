@@ -74,11 +74,34 @@ class LoginPage(BasePage):
         stay_signed_in_submit_button.click(timeout=10_000, delay=500)
 
 
-    def google_login_page(self) -> None:
+    def google_login_page(self, email: str, password: str) -> None:
         expect(self.page).to_have_url(
             re.compile(r"https://accounts\.google\.com/.*"),
             timeout=15_000,
         )
-        expect(self.page.locator('input[type="email"], input[type="text"]')).to_be_visible(
-            timeout=10_000
-        )
+        # Google login flow can vary based on factors like account settings and previous login sessions, so we need to handle multiple possible prompts. We'll start by entering the email, then proceed step-by-step, waiting for each expected element to appear before interacting with it.
+        email_field = self.page.get_by_role("textbox", name="Email or phone")
+        expect(email_field).to_be_visible(timeout=10_000)
+        email_field.fill(email, timeout=10_000)
+        next_button = self.page.get_by_role("button", name="Next")
+        expect(next_button).to_be_visible(timeout=10_000)
+        next_button.click(timeout=10_000, delay=500)
+
+        # Wait for password field to appear, which indicates we've moved to the next step of the login flow
+        password_field = self.page.get_by_role("textbox", name="Enter your password")
+        expect(password_field).to_be_visible(timeout=15_000)
+        password_field.fill(password, timeout=10_000)
+        password_next_button = self.page.get_by_role("button", name="Next")
+        expect(password_next_button).to_be_visible(timeout=10_000)
+        password_next_button.click(timeout=10_000, delay=500)
+
+        # Handle "Google wants to know you’re a real person" prompt if it appears
+        i_understand = self.page.locator("#confirm")
+        expect(i_understand).to_be_visible(timeout=15_000)
+        i_understand.click(timeout=10_000, delay=500)
+
+        # Handle "Stay signed in?" prompt if it appears
+        continue_button = self.page.get_by_text("Continue", exact=True)
+        expect(continue_button).to_be_visible(timeout=15_000)
+        continue_button.click(timeout=10_000, delay=500)
+        
