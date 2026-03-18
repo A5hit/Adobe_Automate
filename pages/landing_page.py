@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect
 
 from pages.base_page import BasePage
@@ -9,14 +7,14 @@ class LandingPage(BasePage):
     """Entry page interactions for the initial onboarding flow."""
 
     def open(self) -> None:
-        self.page.goto("/")
+        self.page.goto("https://new.express.adobe.com/")
 
     def ensure_authenticated(self) -> None:
         current_url = self.page.url
         if "auth.services.adobe.com" in current_url or "adobelogn.icom" in current_url:
             raise AssertionError(
-                "Adobe session is not authenticated in the automation profile. "
-                "Sign in once in the dedicated Chrome profile, then rerun the test."
+                "Adobe session is not authenticated in the current browser context. "
+                "Complete the login flow before running the authenticated scenario."
             )
 
     def click_lets_go(self) -> None:
@@ -87,6 +85,7 @@ class LandingPage(BasePage):
     def click_dialog_download_button(self) -> None:
         button = self.page.locator("#dialog-download-btn").last
         expect(button).to_be_visible(timeout=30_000)
+
         # with self.page.expect_download(timeout=30_000) as download_info:
         #     button.click(timeout=10_000)
         #

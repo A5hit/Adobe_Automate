@@ -4,9 +4,6 @@
 - Install browsers once: `python -m playwright install chromium`
 - Run tests: `pytest`
 - Configure local settings in `.env`
-- Debug with an existing Chrome profile:
-  - Close all Chrome windows first.
-  - Set `USE_CHROME_PROFILE=1` in `.env`
-  - Set `CHROME_USER_DATA_DIR=%LOCALAPPDATA%\Google\Chrome\User Data` in `.env`
-  - Optionally set `CHROME_PROFILE_DIR=Default` or `Profile 1` in `.env`
-  - Run `pytest`
+- Run one account from env vars: set `ADOBE_EMAIL` and `ADOBE_PASSWORD`
+- Run the full suite for many accounts from CSV: set `ADOBE_ACCOUNTS_CSV=path\\to\\accounts.csv`, or place `accounts.csv` in the project root
+- CSV format: include `email,password` headers; each row runs the module in a fresh browser context
