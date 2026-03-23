@@ -20,10 +20,14 @@ class LandingPage(BasePage):
             )
 
     def click_lets_go(self) -> None:
-        self.set_step("Click Let's go")
+        self.set_step("Handle Let's go prompt")
         cta = self.page.get_by_text("Let\u2019s go", exact=True)
-        expect(cta).to_be_visible(timeout=5_000)
-        cta.click(timeout=5_000)
+        try:
+            cta.wait_for(state="visible", timeout=5_000)
+        except PlaywrightTimeoutError:
+            return
+        else:
+            cta.click(timeout=5_000)
 
     def expect_create_a_poster_visible(self) -> None:
         self.set_step("Wait for Create a poster option")
@@ -48,6 +52,7 @@ class LandingPage(BasePage):
             self.page.wait_for_load_state("domcontentloaded")
 
     def click_generate_template(self) -> None:
+        self.dismiss_skip_tour_if_visible()
         self.set_step("Click Generate template")
         button = self.page.get_by_text("Generate template", exact=True)
         expect(button).to_be_visible(timeout=10_000)

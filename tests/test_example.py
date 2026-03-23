@@ -28,12 +28,11 @@ def test_login(page: Page, account: dict[str, str], request: pytest.FixtureReque
 
     login_page.set_step("Wait for Adobe Express app after login")
     page.wait_for_url(re.compile(r"https://new\.express\.adobe\.com/.*"), timeout=60_000)
-    login_page.set_step("Wait for Let's go CTA")
-    page.get_by_text("Let\u2019s go", exact=True).wait_for(state="visible", timeout=60_000)
 
     landing_page = LandingPage(page, request.node)
     landing_page.open()
     landing_page.ensure_authenticated()
+    sleep(5)
     landing_page.click_lets_go()
     landing_page.expect_create_a_poster_visible()
     landing_page.click_create_a_poster()

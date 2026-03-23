@@ -1,6 +1,6 @@
 import re
 
-from playwright.sync_api import expect
+from playwright.sync_api import Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError, expect
 
 from pages.base_page import BasePage
 
@@ -10,7 +10,18 @@ class LoginPage(BasePage):
 
     def open(self) -> None:
         self.set_step("Open Adobe login page")
-        self.page.goto("https://www.adobe.com/express/login")
+        for attempt in range(3):
+            try:
+                self.page.goto(
+                    "https://www.adobe.com/express/login",
+                    wait_until="domcontentloaded",
+                    timeout=30_000,
+                )
+                return
+            except PlaywrightError as exc:
+                if "ERR_HTTP2_PROTOCOL_ERROR" not in str(exc) or attempt == 2:
+                    raise
+                self.page.wait_for_timeout(1_000)
 
     # def expect_login_page_visible(self) -> None:
     #     expect(self.page).to_have_url(
@@ -58,18 +69,35 @@ class LoginPage(BasePage):
             re.compile(r"https://login\.microsoftonline\.com/.*"),
             timeout=15_000,
         )
-        self.set_step("Enter Microsoft email")
+
         email_field = self.page.get_by_placeholder("Email, phone, or Skype")
-        expect(email_field).to_be_visible(timeout=10_000)
-        email_field.fill(email, timeout=10_000)
-        self.set_step("Submit Microsoft email")
-        submit_button = self.page.locator("input[type='submit']")
-        expect(submit_button).to_be_visible(timeout=10_000)
-        submit_button.click(timeout=10_000, delay=500)
+        password_prompt = self.page.get_by_text("Enter password", exact=True)
+        password_field = self.page.get_by_placeholder("Password")
+        try:
+            password_field.wait_for(state="visible", timeout=10_000)
+            current_state = "enter_password"
+        except PlaywrightTimeoutError:
+            try:
+                email_field.wait_for(state="visible", timeout=10_000)
+                current_state = "enter_email"
+            except PlaywrightTimeoutError as exc:
+                raise AssertionError("Microsoft login page is in an unexpected state.") from exc
+
+
+        if current_state == "enter_email":
+            self.set_step("Enter Microsoft email")
+            expect(email_field).to_be_visible(timeout=10_000)
+            email_field.fill(email, timeout=10_000)
+            self.set_step("Submit Microsoft email")
+            submit_button = self.page.locator("#idSIButton9:visible")
+            expect(submit_button).to_be_visible(timeout=10_000)
+            submit_button.click(timeout=10_000, delay=500)
+        else:
+            self.set_step("Use preselected Microsoft account")
+            expect(password_prompt).to_be_visible(timeout=10_000)
 
         # Wait for password field to appear, which indicates we've moved to the next step of the login flow
         self.set_step("Enter Microsoft password")
-        password_field = self.page.get_by_placeholder("Password")
         expect(password_field).to_be_visible(timeout=10_000)
         password_field.fill(password, timeout=10_000)
         self.set_step("Submit Microsoft password")
@@ -79,9 +107,9 @@ class LoginPage(BasePage):
         self.set_step("Confirm Microsoft stay signed in prompt")
         stay_signed_in_text = self.page.get_by_text("Stay signed in?", exact=True)
         expect(stay_signed_in_text).to_be_visible(timeout=10_000)
-        stay_signed_in_submit_button = self.page.locator("input[type='submit']")
-        expect(stay_signed_in_submit_button).to_be_visible(timeout=10_000)
-        stay_signed_in_submit_button.click(timeout=10_000, delay=500)
+        stay_signed_in_no_button = self.page.get_by_role("button", name="No")
+        expect(stay_signed_in_no_button).to_be_visible(timeout=10_000)
+        stay_signed_in_no_button.click(timeout=10_000, delay=500)
 
     def google_login_page(self, email: str, password: str) -> None:
         self.set_step("Wait for Google login page")
