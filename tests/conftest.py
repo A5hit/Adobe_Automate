@@ -1,6 +1,7 @@
 import csv
 import os
 import sys
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,6 +34,35 @@ class CsvResultReporter:
         self.report_path.parent.mkdir(parents=True, exist_ok=True)
         self._file = self.report_path.open("w", newline="", encoding="utf-8")
         self._writer = csv.DictWriter(self._file, fieldnames=REPORT_HEADERS)
+        self._writer.writeheader()
+        self._file.flush()
+
+    def write_row(self, row: dict[str, str]) -> None:
+        self._ensure_open()
+        self._writer.writerow(row)
+        self._file.flush()
+
+    def close(self) -> None:
+        if self._file is not None:
+            self._file.close()
+
+
+class CsvRowCollector:
+    """Collect CSV rows from worker-local artifact files."""
+
+    def __init__(self, csv_path: Path, fieldnames: list[str]) -> None:
+        self.csv_path = csv_path
+        self.fieldnames = fieldnames
+        self._file = None
+        self._writer = None
+
+    def _ensure_open(self) -> None:
+        if self._file is not None and self._writer is not None:
+            return
+
+        self.csv_path.parent.mkdir(parents=True, exist_ok=True)
+        self._file = self.csv_path.open("w", newline="", encoding="utf-8")
+        self._writer = csv.DictWriter(self._file, fieldnames=self.fieldnames)
         self._writer.writeheader()
         self._file.flush()
 
@@ -121,6 +151,46 @@ class ConsumedAccountLedger:
             self._file.close()
 
 
+def _normalize_email(email: str) -> str:
+    return email.strip().casefold()
+
+
+def _is_xdist_worker(config: pytest.Config) -> bool:
+    return hasattr(config, "workerinput")
+
+
+def _is_xdist_controller(config: pytest.Config) -> bool:
+    if _is_xdist_worker(config):
+        return False
+
+    numprocesses = getattr(getattr(config, "option", None), "numprocesses", None)
+    return bool(numprocesses)
+
+
+def _get_worker_id(config: pytest.Config) -> str:
+    if _is_xdist_worker(config):
+        return str(config.workerinput["workerid"])
+    return "master"
+
+
+def _worker_artifact_path(base_path: Path, worker_id: str) -> Path:
+    return base_path.with_name(f"{base_path.stem}.{worker_id}{base_path.suffix}")
+
+
+def _load_consumed_emails(ledger_path: Path) -> set[str]:
+    consumed_emails: set[str] = set()
+    if not ledger_path.is_file():
+        return consumed_emails
+
+    with ledger_path.open(newline="", encoding="utf-8-sig") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            email = _normalize_email(row.get("email", ""))
+            if email:
+                consumed_emails.add(email)
+    return consumed_emails
+
+
 def _resolve_results_csv(config: pytest.Config) -> Path:
     csv_path_value = os.getenv("ADOBE_RESULTS_CSV", "").strip()
     if csv_path_value:
@@ -156,6 +226,10 @@ def _get_consumed_ledger(config: pytest.Config) -> ConsumedAccountLedger:
     if ledger is None:
         raise pytest.UsageError("Consumed account ledger was not initialized.")
     return ledger
+
+
+def _get_consumed_fragment_writer(config: pytest.Config) -> CsvRowCollector | None:
+    return getattr(config, "_consumed_fragment_writer", None)
 
 
 def _extract_account_email(item: pytest.Item) -> str:
@@ -240,6 +314,29 @@ def _with_account_ids(accounts: list[dict[str, str]]) -> list[dict[str, str]]:
     ]
 
 
+def _set_account_selection_state(
+    config: pytest.Config,
+    *,
+    accounts: list[dict[str, str]],
+    source: str,
+    total_accounts: int,
+    consumed_skipped: int,
+    duplicate_skipped: int,
+    ledger_path: Path,
+) -> list[dict[str, str]]:
+    selected_accounts = _with_account_ids(accounts)
+    config._selected_accounts = selected_accounts
+    config._account_selection_summary = {
+        "source": source,
+        "total_accounts": total_accounts,
+        "runnable_accounts": len(selected_accounts),
+        "consumed_skipped": consumed_skipped,
+        "duplicate_skipped": duplicate_skipped,
+        "ledger_path": str(ledger_path),
+    }
+    return selected_accounts
+
+
 def _record_account_selection_summary(
     config: pytest.Config,
     *,
@@ -260,40 +357,29 @@ def _record_account_selection_summary(
     }
 
 def _filter_fresh_accounts(
-    config: pytest.Config,
     accounts: list[dict[str, str]],
     *,
-    source: str,
-) -> list[dict[str, str]]:
-    ledger = _get_consumed_ledger(config)
+    consumed_emails: set[str],
+) -> tuple[list[dict[str, str]], int, int]:
     fresh_accounts: list[dict[str, str]] = []
     seen_emails: set[str] = set()
     consumed_skipped = 0
     duplicate_skipped = 0
 
     for account in accounts:
-        normalized_email = ConsumedAccountLedger._normalize_email(account["email"])
+        normalized_email = _normalize_email(account["email"])
         if normalized_email in seen_emails:
             duplicate_skipped += 1
             continue
 
         seen_emails.add(normalized_email)
-        if ledger.has(account["email"]):
+        if normalized_email in consumed_emails:
             consumed_skipped += 1
             continue
 
         fresh_accounts.append(account)
 
-    _record_account_selection_summary(
-        config,
-        source=source,
-        total_accounts=len(accounts),
-        runnable_accounts=len(fresh_accounts),
-        consumed_skipped=consumed_skipped,
-        duplicate_skipped=duplicate_skipped,
-        ledger_path=ledger.ledger_path,
-    )
-    return _with_account_ids(fresh_accounts)
+    return fresh_accounts, consumed_skipped, duplicate_skipped
 
 
 def _load_accounts_from_csv(csv_path: Path) -> list[dict[str, str]]:
@@ -363,18 +449,45 @@ def _resolve_accounts_csv(config: pytest.Config) -> Path | None:
 
 
 def _load_accounts(config: pytest.Config) -> list[dict[str, str]]:
+    cached_accounts = getattr(config, "_selected_accounts", None)
+    if cached_accounts is not None:
+        return cached_accounts
+
+    ledger_path = getattr(config, "_final_consumed_accounts_path", _resolve_consumed_accounts_csv(config))
+    consumed_emails = _load_consumed_emails(ledger_path)
     csv_path = _resolve_accounts_csv(config)
     if csv_path is not None:
         accounts = _load_accounts_from_csv(csv_path)
-        return _filter_fresh_accounts(config, accounts, source=str(csv_path))
+        fresh_accounts, consumed_skipped, duplicate_skipped = _filter_fresh_accounts(
+            accounts,
+            consumed_emails=consumed_emails,
+        )
+        return _set_account_selection_state(
+            config,
+            accounts=fresh_accounts,
+            source=str(csv_path),
+            total_accounts=len(accounts),
+            consumed_skipped=consumed_skipped,
+            duplicate_skipped=duplicate_skipped,
+            ledger_path=ledger_path,
+        )
 
     email = os.getenv("ADOBE_EMAIL", "").strip()
     password = os.getenv("ADOBE_PASSWORD", "").strip()
     if email and password:
-        return _filter_fresh_accounts(
+        accounts = [{"email": email, "password": password, "id": email}]
+        fresh_accounts, consumed_skipped, duplicate_skipped = _filter_fresh_accounts(
+            accounts,
+            consumed_emails=consumed_emails,
+        )
+        return _set_account_selection_state(
             config,
-            [{"email": email, "password": password, "id": email}],
+            accounts=fresh_accounts,
             source="environment variables",
+            total_accounts=len(accounts),
+            consumed_skipped=consumed_skipped,
+            duplicate_skipped=duplicate_skipped,
+            ledger_path=ledger_path,
         )
 
     raise pytest.UsageError(
@@ -407,12 +520,129 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     )
 
 
+@pytest.hookimpl(optionalhook=True)
+def pytest_configure_node(node) -> None:
+    config = node.config
+    accounts = _load_accounts(config)
+    worker_id = str(node.workerinput.get("workerid", node.gateway.id))
+    worker_ids = getattr(config, "_xdist_worker_ids", set())
+    worker_ids.add(worker_id)
+    config._xdist_worker_ids = worker_ids
+    node.workerinput["selected_accounts"] = accounts
+    node.workerinput["account_selection_summary"] = getattr(config, "_account_selection_summary", None)
+    node.workerinput["final_results_path"] = str(config._final_results_path)
+    node.workerinput["final_consumed_accounts_path"] = str(config._final_consumed_accounts_path)
+
+
 def pytest_configure(config: pytest.Config) -> None:
-    config._csv_result_reporter = CsvResultReporter(_resolve_results_csv(config))
+    if _is_xdist_worker(config):
+        config._selected_accounts = config.workerinput.get("selected_accounts", [])
+        config._account_selection_summary = config.workerinput.get("account_selection_summary")
+        config._final_results_path = Path(config.workerinput["final_results_path"])
+        config._final_consumed_accounts_path = Path(config.workerinput["final_consumed_accounts_path"])
+    else:
+        config._final_results_path = _resolve_results_csv(config)
+        config._final_consumed_accounts_path = _resolve_consumed_accounts_csv(config)
+        _load_accounts(config)
+
+    if _is_xdist_controller(config):
+        return
+
+    if _is_xdist_worker(config):
+        worker_id = _get_worker_id(config)
+        config._csv_result_reporter = CsvResultReporter(
+            _worker_artifact_path(config._final_results_path, worker_id)
+        )
+        config._consumed_fragment_writer = CsvRowCollector(
+            _worker_artifact_path(config._final_consumed_accounts_path, worker_id),
+            CONSUMED_ACCOUNT_HEADERS,
+        )
+        return
+
+    config._csv_result_reporter = CsvResultReporter(config._final_results_path)
     config._consumed_account_ledger = ConsumedAccountLedger(
-        _resolve_consumed_accounts_csv(config),
-        source=_resolve_results_csv(config).name,
+        config._final_consumed_accounts_path,
+        source=config._final_results_path.name,
     )
+
+
+def _read_csv_rows(csv_path: Path) -> list[dict[str, str]]:
+    if not csv_path.is_file():
+        return []
+
+    with csv_path.open(newline="", encoding="utf-8-sig") as file:
+        reader = csv.DictReader(file)
+        return [dict(row) for row in reader]
+
+
+def _merge_result_fragments(final_path: Path, fragment_paths: Iterable[Path]) -> None:
+    final_path.parent.mkdir(parents=True, exist_ok=True)
+    with final_path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=REPORT_HEADERS)
+        writer.writeheader()
+        for fragment_path in sorted(fragment_paths, key=lambda path: path.name):
+            for row in _read_csv_rows(fragment_path):
+                writer.writerow({header: row.get(header, "") for header in REPORT_HEADERS})
+
+
+def _merge_consumed_fragments(final_path: Path, fragment_paths: Iterable[Path]) -> None:
+    existing_emails = _load_consumed_emails(final_path)
+    rows_to_append: list[dict[str, str]] = []
+
+    for fragment_path in sorted(fragment_paths, key=lambda path: path.name):
+        for row in _read_csv_rows(fragment_path):
+            email = row.get("email", "").strip()
+            normalized_email = _normalize_email(email)
+            if not normalized_email or normalized_email in existing_emails:
+                continue
+
+            rows_to_append.append(
+                {
+                    "email": email,
+                    "consumed_at": row.get("consumed_at", ""),
+                    "source": row.get("source", ""),
+                }
+            )
+            existing_emails.add(normalized_email)
+
+    if not rows_to_append:
+        return
+
+    final_path.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = final_path.exists() and final_path.stat().st_size > 0
+    with final_path.open("a", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=CONSUMED_ACCOUNT_HEADERS)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerows(rows_to_append)
+
+
+def _cleanup_fragment_files(fragment_paths: Iterable[Path]) -> None:
+    for fragment_path in fragment_paths:
+        if fragment_path.exists():
+            fragment_path.unlink()
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    config = session.config
+    if not _is_xdist_controller(config):
+        return
+
+    worker_ids = sorted(getattr(config, "_xdist_worker_ids", set()))
+    if not worker_ids:
+        return
+
+    result_fragments = [
+        _worker_artifact_path(config._final_results_path, worker_id) for worker_id in worker_ids
+    ]
+    consumed_fragments = [
+        _worker_artifact_path(config._final_consumed_accounts_path, worker_id)
+        for worker_id in worker_ids
+    ]
+    _merge_result_fragments(config._final_results_path, result_fragments)
+    _merge_consumed_fragments(config._final_consumed_accounts_path, consumed_fragments)
+    _cleanup_fragment_files(result_fragments)
+    _cleanup_fragment_files(consumed_fragments)
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
@@ -422,6 +652,9 @@ def pytest_unconfigure(config: pytest.Config) -> None:
     ledger = getattr(config, "_consumed_account_ledger", None)
     if ledger is not None:
         ledger.close()
+    consumed_fragment_writer = _get_consumed_fragment_writer(config)
+    if consumed_fragment_writer is not None:
+        consumed_fragment_writer.close()
 
 
 def pytest_report_header(config: pytest.Config):
@@ -493,7 +726,16 @@ def context(browser, base_url, account, request: pytest.FixtureRequest):
     """Create a fresh browser context for each credential row."""
     email = str(account.get("email", "")).strip()
     if email:
-        _get_consumed_ledger(request.config).claim(email)
+        if _is_xdist_worker(request.config):
+            _get_consumed_fragment_writer(request.config).write_row(
+                {
+                    "email": email,
+                    "consumed_at": datetime.now(timezone.utc).isoformat(),
+                    "source": request.config._final_results_path.name,
+                }
+            )
+        else:
+            _get_consumed_ledger(request.config).claim(email)
 
     context = browser.new_context(accept_downloads=True, base_url=base_url)
     yield context
