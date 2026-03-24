@@ -6,3 +6,6 @@ downloads/
 .idea/
 __pycache__/
 *.pyc
+accounts.csv
+accounts_last30.csv
+log/

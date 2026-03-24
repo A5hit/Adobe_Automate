@@ -30,6 +30,7 @@ class LandingPage(BasePage):
             cta.click(timeout=5_000)
 
     def expect_create_a_poster_visible(self) -> None:
+        self.dismiss_skip_tour_if_visible()
         self.set_step("Wait for Create a poster option")
         expect(self.page.get_by_text("Create a poster", exact=True)).to_be_visible(timeout=5_000)
 
@@ -38,7 +39,7 @@ class LandingPage(BasePage):
         card = self.page.get_by_text("Create a poster", exact=True)
         expect(card).to_be_visible(timeout=5_000)
         card.click(timeout=5_000)
-        self.dismiss_skip_tour_if_visible()
+
 
     def dismiss_skip_tour_if_visible(self) -> None:
         self.set_step("Dismiss Skip tour prompt")
@@ -52,7 +53,6 @@ class LandingPage(BasePage):
             self.page.wait_for_load_state("domcontentloaded")
 
     def click_generate_template(self) -> None:
-        self.dismiss_skip_tour_if_visible()
         self.set_step("Click Generate template")
         button = self.page.get_by_text("Generate template", exact=True)
         expect(button).to_be_visible(timeout=10_000)
