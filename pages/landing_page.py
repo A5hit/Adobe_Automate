@@ -1,3 +1,5 @@
+from time import monotonic
+
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect
 
 from pages.base_page import BasePage
@@ -74,7 +76,37 @@ class LandingPage(BasePage):
 
     def expect_generated_template_visible(self) -> None:
         self.set_step("Wait for generated template")
-        expect(self.page.get_by_label("Generated Template").last).to_be_visible(timeout=30_000)
+        template = self.page.get_by_label("Generated Template").last
+        alert = self.page.get_by_role("alert").first
+        close_button = self.page.get_by_role("button", name="Close")
+        max_retries = 2
+        timeout_ms = 30_000
+        poll_interval_ms = 500
+
+        for attempt in range(max_retries + 1):
+            deadline = monotonic() + (timeout_ms / 1000)
+            while monotonic() < deadline:
+                if template.is_visible():
+                    return
+
+                if alert.is_visible():
+                    alert_text = alert.inner_text().strip()
+                    close_button.click(timeout=5_000)
+                    alert.wait_for(state="hidden", timeout=5_000)
+
+                    if attempt >= max_retries:
+                        raise AssertionError(
+                            "Adobe generation showed an alert instead of a generated template"
+                            + (f": {alert_text}" if alert_text else ".")
+                        )
+
+                    self.click_generate()
+                    self.set_step("Wait for generated template")
+                    break
+
+                self.page.wait_for_timeout(poll_interval_ms)
+            else:
+                expect(template).to_be_visible(timeout=1_000)
 
     def click_generated_template(self) -> None:
         self.set_step("Select generated template")
