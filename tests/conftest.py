@@ -7,13 +7,17 @@ from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 load_dotenv(override=True)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from settings import PW_DEFAULT_TIMEOUT_MS, PW_EXPECT_TIMEOUT_MS, PW_NAVIGATION_TIMEOUT_MS
+
+expect.set_options(timeout=PW_EXPECT_TIMEOUT_MS)
 
 REPORT_HEADERS = ["email", "test_status", "error", "failed_at_step", "timestamp"]
 CONSUMED_ACCOUNT_HEADERS = ["email", "consumed_at", "source"]
@@ -738,6 +742,8 @@ def context(browser, base_url, account, request: pytest.FixtureRequest):
             _get_consumed_ledger(request.config).claim(email)
 
     context = browser.new_context(accept_downloads=True, base_url=base_url)
+    context.set_default_timeout(PW_DEFAULT_TIMEOUT_MS)
+    context.set_default_navigation_timeout(PW_NAVIGATION_TIMEOUT_MS)
     yield context
     context.close()
 
@@ -746,6 +752,8 @@ def context(browser, base_url, account, request: pytest.FixtureRequest):
 def page(context):
     """Create a fresh page while keeping session state in the shared context."""
     page = context.new_page()
+    page.set_default_timeout(PW_DEFAULT_TIMEOUT_MS)
+    page.set_default_navigation_timeout(PW_NAVIGATION_TIMEOUT_MS)
     yield page
     if page in context.pages:
         page.close()

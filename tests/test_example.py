@@ -6,6 +6,7 @@ from playwright.sync_api import Page
 
 from pages.landing_page import LandingPage
 from pages.login_page import LoginPage
+from settings import PW_LOGIN_FINAL_URL_TIMEOUT_MS
 
 
 def test_login(page: Page, account: dict[str, str], request: pytest.FixtureRequest) -> None:
@@ -27,7 +28,10 @@ def test_login(page: Page, account: dict[str, str], request: pytest.FixtureReque
         raise AssertionError(f"Unsupported identity provider: {provider}")
 
     login_page.set_step("Wait for Adobe Express app after login")
-    page.wait_for_url(re.compile(r"https://new\.express\.adobe\.com/.*"), timeout=60_000)
+    page.wait_for_url(
+        re.compile(r"https://new\.express\.adobe\.com/.*"),
+        timeout=PW_LOGIN_FINAL_URL_TIMEOUT_MS,
+    )
 
     landing_page = LandingPage(page, request.node)
     landing_page.open()
@@ -47,3 +51,4 @@ def test_login(page: Page, account: dict[str, str], request: pytest.FixtureReque
     landing_page.click_edit_template()
     landing_page.click_editor_download_button()
     landing_page.click_dialog_download_button()
+    sleep(10)

@@ -6,6 +6,10 @@
 - Run tests in parallel: `pytest -n auto`
 - If Windows temp permissions block xdist startup, run `pytest -n auto --basetemp=parallel_tmp`
 - Configure local settings in `.env`
+- Timeout categories can be tuned in `.env` for slower or faster machines:
+- `PW_DEFAULT_TIMEOUT_MS`, `PW_EXPECT_TIMEOUT_MS`, `PW_SHORT_TIMEOUT_MS`, `PW_BRIEF_TIMEOUT_MS`
+- `PW_QUICK_TIMEOUT_MS`, `PW_AUTH_TIMEOUT_MS`, `PW_NAVIGATION_TIMEOUT_MS`
+- `PW_LONG_TIMEOUT_MS`, `PW_LOGIN_FINAL_URL_TIMEOUT_MS`
 - Run one account from env vars: set `ADOBE_EMAIL` and `ADOBE_PASSWORD`
 - Run the full suite for many accounts from CSV: set `ADOBE_ACCOUNTS_CSV=path\\to\\accounts.csv`, or place `accounts.csv` in the project root
 - CSV format: include `email,password` headers; each row is one independent test item and runs in a fresh browser context
