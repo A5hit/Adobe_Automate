@@ -9,3 +9,5 @@ __pycache__/
 accounts.csv
 accounts_last30.csv
 log/
+reports
+Sample_100.csv
