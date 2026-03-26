@@ -1,4 +1,4 @@
-from time import monotonic
+from time import monotonic, sleep
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect
 
@@ -39,7 +39,6 @@ class LandingPage(BasePage):
             cta.click(timeout=PW_SHORT_TIMEOUT_MS)
 
     def expect_create_a_poster_visible(self) -> None:
-        self.dismiss_skip_tour_if_visible()
         self.set_step("Wait for Create a poster option")
         expect(self.page.get_by_text("Create a poster", exact=True)).to_be_visible(
             timeout=PW_SHORT_TIMEOUT_MS
@@ -50,7 +49,6 @@ class LandingPage(BasePage):
         card = self.page.get_by_text("Create a poster", exact=True)
         expect(card).to_be_visible(timeout=PW_SHORT_TIMEOUT_MS)
         card.click(timeout=PW_SHORT_TIMEOUT_MS)
-
 
     def dismiss_skip_tour_if_visible(self) -> None:
         self.set_step("Dismiss Skip tour prompt")
@@ -65,6 +63,7 @@ class LandingPage(BasePage):
 
     def click_generate_template(self) -> None:
         self.set_step("Click Generate template")
+        self.dismiss_skip_tour_if_visible()
         button = self.page.get_by_text("Generate template", exact=True)
         expect(button).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
         button.click(timeout=PW_DEFAULT_TIMEOUT_MS)
@@ -75,10 +74,10 @@ class LandingPage(BasePage):
         prompt = self.page.locator("textarea.input")
         expect(prompt).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
         prompt.fill(
-            "Create a poster for festival. Exclude all copyrighted, licensed, "
-            "trademarked, branded, or franchise-related content. Do not imitate "
-            "protected characters, logos, products, artwork, or distinctive styles. "
-            "Use only generic original elements."
+                "Create a poster for festival. Exclude all copyrighted, licensed, "
+                "trademarked, branded, or franchise-related content. Do not imitate "
+                "protected characters, logos, products, artwork, or distinctive styles. "
+                "Use only generic original elements."
         )
 
     def click_generate(self) -> None:
@@ -147,13 +146,52 @@ class LandingPage(BasePage):
 
     def click_dialog_download_button(self) -> None:
         self.set_step("Click download dialog button")
-        button = self.page.locator("#dialog-download-btn").last
-        expect(button).to_be_visible(timeout=PW_LONG_TIMEOUT_MS)
 
-        with self.page.expect_download(timeout=PW_LONG_TIMEOUT_MS) as download_info:
-            button.click(timeout=PW_DEFAULT_TIMEOUT_MS)
-        #
-        # download = download_info.value
-        # target_path = download_dir / Path(download.suggested_filename).name
-        # target_path.parent.mkdir(parents=True, exist_ok=True)
-        # download.save_as(str(target_path))
+        download_button = self.page.locator("#dialog-download-btn").last
+        success_text = self.page.get_by_text("Your download is complete.", exact=True)
+        error_item = self.page.get_by_test_id("error-item").last
+        all_clear_heading = self.page.get_by_role("heading", name="All clear")
+        resolved_button = self.page.get_by_test_id("x-pre-export-check-resolved-button")
+
+        expect(download_button).to_be_visible(timeout=PW_LONG_TIMEOUT_MS)
+        download_button.click(timeout=PW_DEFAULT_TIMEOUT_MS)
+        # Wait until either success appears or export errors appear
+        while True:
+            if success_text.is_visible():
+                return
+
+            if error_item.is_visible():
+                break
+
+            self.page.wait_for_timeout(PW_QUICK_TIMEOUT_MS)
+        # Resolve export errors until "All clear" is shown, then proceed with download
+        while not all_clear_heading.is_visible():
+            if error_item.is_visible():
+                error_item.click(timeout=PW_SHORT_TIMEOUT_MS)
+                self.page.keyboard.press("Delete")
+                self.set_step("Delete error item")
+            self.page.wait_for_timeout(PW_QUICK_TIMEOUT_MS)
+
+        self.set_step("wait for resolved button")
+        expect(resolved_button).to_be_visible(timeout=PW_LONG_TIMEOUT_MS)
+        self.set_step("click resolved button")
+        sleep(1)  # Avoid potential timing issues with button state update after error resolution
+        resolved_button.click(timeout=PW_DEFAULT_TIMEOUT_MS)
+
+        expect(download_button).to_be_visible(timeout=PW_LONG_TIMEOUT_MS)
+        download_button.click(timeout=PW_DEFAULT_TIMEOUT_MS)
+
+        expect(success_text).to_be_visible(timeout=PW_LONG_TIMEOUT_MS)
+
+
+
+
+
+
+
+
+
+
+
+
+

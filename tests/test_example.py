@@ -51,4 +51,4 @@ def test_login(page: Page, account: dict[str, str], request: pytest.FixtureReque
     landing_page.click_edit_template()
     landing_page.click_editor_download_button()
     landing_page.click_dialog_download_button()
-    sleep(10)
+    sleep(5)
