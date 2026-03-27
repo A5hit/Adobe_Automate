@@ -1,9 +1,9 @@
 import re
-from time import sleep
 
 import pytest
 from playwright.sync_api import Page
 
+from pages.ai_generation_page import AiGenerationPage
 from pages.landing_page import LandingPage
 from pages.login_page import LoginPage
 from settings import PW_LOGIN_FINAL_URL_TIMEOUT_MS
@@ -36,19 +36,12 @@ def test_login(page: Page, account: dict[str, str], request: pytest.FixtureReque
     landing_page = LandingPage(page, request.node)
     landing_page.open()
     landing_page.ensure_authenticated()
-    sleep(5)
     landing_page.click_lets_go()
-    landing_page.expect_create_a_poster_visible()
-    landing_page.click_create_a_poster()
-    landing_page.click_generate_template()
-    sleep(5)
-    landing_page.enter_prompt_text()
-    sleep(5)
-    landing_page.click_generate()
-    sleep(5)
-    landing_page.expect_generated_template_visible()
-    landing_page.click_generated_template()
-    landing_page.click_edit_template()
-    landing_page.click_editor_download_button()
-    landing_page.click_dialog_download_button()
-    sleep(5)
+
+    ai_generation_page = AiGenerationPage(page, request.node)
+    ai_generation_page.wait_until_ready()
+    ai_generation_page.click_ai()
+    ai_generation_page.fill_prompt()
+    ai_generation_page.click_generate_when_ready()
+    ai_generation_page.wait_for_generation_page_ready()
+    ai_generation_page.download_selected_image()

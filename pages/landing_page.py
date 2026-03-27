@@ -8,7 +8,7 @@ from settings import (
     PW_DEFAULT_TIMEOUT_MS,
     PW_LONG_TIMEOUT_MS,
     PW_QUICK_TIMEOUT_MS,
-    PW_SHORT_TIMEOUT_MS,
+    PW_SHORT_TIMEOUT_MS, PW_NAVIGATION_TIMEOUT_MS,
 )
 
 
@@ -32,16 +32,17 @@ class LandingPage(BasePage):
         self.set_step("Handle Let's go prompt")
         cta = self.page.get_by_text("Let\u2019s go", exact=True)
         try:
-            cta.wait_for(state="visible", timeout=PW_SHORT_TIMEOUT_MS)
+            # This onboarding CTA can arrive late after the authenticated shell paints on slower runs.
+            cta.wait_for(state="visible", timeout=PW_NAVIGATION_TIMEOUT_MS)
         except PlaywrightTimeoutError:
             return
         else:
-            cta.click(timeout=PW_SHORT_TIMEOUT_MS)
+            cta.click(timeout=PW_DEFAULT_TIMEOUT_MS)
 
     def expect_create_a_poster_visible(self) -> None:
         self.set_step("Wait for Create a poster option")
         expect(self.page.get_by_text("Create a poster", exact=True)).to_be_visible(
-            timeout=PW_SHORT_TIMEOUT_MS
+            timeout=PW_NAVIGATION_TIMEOUT_MS
         )
 
     def click_create_a_poster(self) -> None:
@@ -54,7 +55,7 @@ class LandingPage(BasePage):
         self.set_step("Dismiss Skip tour prompt")
         skip_tour = self.page.get_by_text("Skip tour", exact=True)
         try:
-            skip_tour.wait_for(state="visible", timeout=PW_BRIEF_TIMEOUT_MS)
+            skip_tour.wait_for(state="visible", timeout=PW_DEFAULT_TIMEOUT_MS)
         except PlaywrightTimeoutError:
             return
         else:
@@ -74,10 +75,7 @@ class LandingPage(BasePage):
         prompt = self.page.locator("textarea.input")
         expect(prompt).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
         prompt.fill(
-                "Create a poster for festival. Exclude all copyrighted, licensed, "
-                "trademarked, branded, or franchise-related content. Do not imitate "
-                "protected characters, logos, products, artwork, or distinctive styles. "
-                "Use only generic original elements."
+                "Create a poster for festival."
         )
 
     def click_generate(self) -> None:
@@ -182,7 +180,6 @@ class LandingPage(BasePage):
         download_button.click(timeout=PW_DEFAULT_TIMEOUT_MS)
 
         expect(success_text).to_be_visible(timeout=PW_LONG_TIMEOUT_MS)
-
 
 
 

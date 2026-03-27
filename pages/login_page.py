@@ -6,7 +6,7 @@ from pages.base_page import BasePage
 from settings import (
     PW_AUTH_TIMEOUT_MS,
     PW_DEFAULT_TIMEOUT_MS,
-    PW_NAVIGATION_TIMEOUT_MS,
+    PW_NAVIGATION_TIMEOUT_MS, PW_LONG_TIMEOUT_MS,
 )
 
 
@@ -55,9 +55,10 @@ class LoginPage(BasePage):
 
     def wait_for_identity_provider_redirect(self) -> str:
         self.set_step("Wait for identity provider redirect")
+
         self.page.wait_for_url(
             re.compile(r"https://(login\.microsoftonline\.com|accounts\.google\.com)/.*"),
-            timeout=PW_AUTH_TIMEOUT_MS,
+            timeout=PW_LONG_TIMEOUT_MS,
         )
 
         current_url = self.page.url

@@ -4,6 +4,7 @@
 - Install browsers once: `python -m playwright install chromium`
 - Run tests: `pytest`
 - Run tests in parallel: `pytest -n auto`
+- Run the Adobe flow with 5 workers: `pytest tests\\test_example.py -n 5 -q --basetemp=parallel_tmp\\pytest-xdist`
 - If Windows temp permissions block xdist startup, run `pytest -n auto --basetemp=parallel_tmp`
 - Configure local settings in `.env`
 - Timeout categories can be tuned in `.env` for slower or faster machines:
