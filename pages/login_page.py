@@ -143,14 +143,26 @@ class LoginPage(BasePage):
         expect(password_next_button).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
         password_next_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
 
-        # Handle the extra Google verification prompt if it appears.
-        self.set_step("Handle Google verification prompt")
-        i_understand = self.page.locator("#confirm")
-        expect(i_understand).to_be_visible(timeout=PW_AUTH_TIMEOUT_MS)
-        i_understand.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+        # Optional: Google identity verification prompt (#confirm)
+        confirm_btn = self.page.locator("#confirm")
+        if confirm_btn.is_visible(timeout=2_000):
+            self.set_step("Handle Google verification prompt")
+            confirm_btn.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
 
-        # Handle the final Google continue prompt if it appears.
-        self.set_step("Handle Google continue prompt")
-        continue_button = self.page.get_by_text("Continue", exact=True)
-        expect(continue_button).to_be_visible(timeout=PW_AUTH_TIMEOUT_MS)
-        continue_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+        # Optional: Google "Continue" prompt (account chooser / consent screen)
+        continue_btn = self.page.get_by_text("Continue", exact=True)
+        if continue_btn.is_visible(timeout=2_000):
+            self.set_step("Handle Google continue prompt")
+            continue_btn.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+
+        # # Handle the extra Google verification prompt if it appears.
+        # self.set_step("Handle Google verification prompt")
+        # i_understand = self.page.locator("#confirm")
+        # expect(i_understand).to_be_visible(timeout=PW_AUTH_TIMEOUT_MS)
+        # i_understand.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+        #
+        # # Handle the final Google continue prompt if it appears.
+        # self.set_step("Handle Google continue prompt")
+        # continue_button = self.page.get_by_text("Continue", exact=True)
+        # expect(continue_button).to_be_visible(timeout=PW_AUTH_TIMEOUT_MS)
+        # continue_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
