@@ -47,7 +47,7 @@ class LoginPage(BasePage):
         expect(email_field).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
         email_field.fill(email, timeout=PW_DEFAULT_TIMEOUT_MS)
 
-    def click_continue(self, delay_ms: float = 500) -> None:
+    def click_continue(self, delay_ms: float = 0) -> None:
         self.set_step("Continue from Adobe login form")
         continue_button = self.page.locator("button[data-id='submit-button']:visible")
         expect(continue_button).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
@@ -97,7 +97,7 @@ class LoginPage(BasePage):
             self.set_step("Submit Microsoft email")
             submit_button = self.page.locator("#idSIButton9:visible")
             expect(submit_button).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
-            submit_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+            submit_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=0)
         else:
             self.set_step("Use preselected Microsoft account")
             expect(password_prompt).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
@@ -109,13 +109,17 @@ class LoginPage(BasePage):
         self.set_step("Submit Microsoft password")
         password_submit_button = self.page.locator("input[type='submit']")
         expect(password_submit_button).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
-        password_submit_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+        password_submit_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=0)
         self.set_step("Confirm Microsoft stay signed in prompt")
         stay_signed_in_text = self.page.get_by_text("Stay signed in?", exact=True)
-        expect(stay_signed_in_text).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
+        try:
+            stay_signed_in_text.wait_for(state="visible", timeout=PW_DEFAULT_TIMEOUT_MS)
+        except PlaywrightTimeoutError:
+            return
+
         stay_signed_in_no_button = self.page.get_by_role("button", name="No")
-        expect(stay_signed_in_no_button).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
-        stay_signed_in_no_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+        if stay_signed_in_no_button.is_visible(timeout=2_000):
+            stay_signed_in_no_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=0)
 
     def google_login_page(self, email: str, password: str) -> None:
         self.set_step("Wait for Google login page")
@@ -131,7 +135,7 @@ class LoginPage(BasePage):
         self.set_step("Submit Google email")
         next_button = self.page.get_by_role("button", name="Next")
         expect(next_button).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
-        next_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+        next_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=0)
 
         # Wait for password field to appear, which indicates we've moved to the next step of the login flow
         self.set_step("Enter Google password")
@@ -141,19 +145,19 @@ class LoginPage(BasePage):
         self.set_step("Submit Google password")
         password_next_button = self.page.get_by_role("button", name="Next")
         expect(password_next_button).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
-        password_next_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+        password_next_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=0)
 
         # Optional: Google identity verification prompt (#confirm)
         confirm_btn = self.page.locator("#confirm")
         if confirm_btn.is_visible(timeout=2_000):
             self.set_step("Handle Google verification prompt")
-            confirm_btn.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+            confirm_btn.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=0)
 
         # Optional: Google "Continue" prompt (account chooser / consent screen)
         continue_btn = self.page.get_by_text("Continue", exact=True)
         if continue_btn.is_visible(timeout=2_000):
             self.set_step("Handle Google continue prompt")
-            continue_btn.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+            continue_btn.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=0)
 
         # # Handle the extra Google verification prompt if it appears.
         # self.set_step("Handle Google verification prompt")
