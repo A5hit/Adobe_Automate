@@ -1,4 +1,3 @@
-.venv/
 .chrome-profile/
 .chrome-user-data/
 downloads/
@@ -11,3 +10,5 @@ accounts_last30.csv
 log/
 reports
 Sample_100.csv
+venv/
+.venv/

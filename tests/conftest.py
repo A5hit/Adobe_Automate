@@ -19,7 +19,7 @@ from settings import PW_DEFAULT_TIMEOUT_MS, PW_EXPECT_TIMEOUT_MS, PW_NAVIGATION_
 
 expect.set_options(timeout=PW_EXPECT_TIMEOUT_MS)
 
-REPORT_HEADERS = ["email", "test_status", "error", "failed_at_step", "timestamp"]
+REPORT_HEADERS = ["email", "test_status", "error", "failed_at_step", "time_taken_sec", "timestamp"]
 CONSUMED_ACCOUNT_HEADERS = ["email", "consumed_at", "source"]
 
 
@@ -269,6 +269,11 @@ def _result_row(item: pytest.Item) -> dict[str, str]:
     setup_report = getattr(item, "rep_setup", None)
     call_report = getattr(item, "rep_call", None)
     teardown_report = getattr(item, "rep_teardown", None)
+    total_duration_sec = sum(
+        float(getattr(report, "duration", 0.0) or 0.0)
+        for report in (setup_report, call_report, teardown_report)
+        if report is not None
+    )
 
     if setup_report is not None and setup_report.failed:
         status = "failed"
@@ -304,6 +309,7 @@ def _result_row(item: pytest.Item) -> dict[str, str]:
         "test_status": status,
         "error": reason,
         "failed_at_step": _failed_step(item, status, fallback_stage),
+        "time_taken_sec": f"{total_duration_sec:.2f}",
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

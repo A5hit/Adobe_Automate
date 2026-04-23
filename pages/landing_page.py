@@ -1,6 +1,7 @@
+import re
 from time import monotonic, sleep
 
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect
+from playwright.sync_api import Error as PlaywrightError, TimeoutError as PlaywrightTimeoutError, expect
 
 from pages.base_page import BasePage
 from settings import (
@@ -30,14 +31,36 @@ class LandingPage(BasePage):
 
     def click_lets_go(self) -> None:
         self.set_step("Handle Let's go prompt")
-        cta = self.page.get_by_text("Let\u2019s go", exact=True)
+        student_name = re.compile(r"i.?m a student", re.IGNORECASE)
+        student_options = [
+            self.page.get_by_role("checkbox", name=student_name),
+            self.page.get_by_role("radio", name=student_name),
+        ]
+        for student_option in student_options:
+            try:
+                if not student_option.count() or not student_option.first.is_visible(timeout=2_000):
+                    continue
+
+                try:
+                    is_selected = student_option.first.is_checked()
+                except PlaywrightError:
+                    is_selected = (student_option.first.get_attribute("aria-checked") or "").lower() == "true"
+
+                if not is_selected:
+                    student_option.first.click(timeout=PW_SHORT_TIMEOUT_MS)
+                break
+            except PlaywrightError:
+                # The onboarding modal can re-render while controls are being hydrated.
+                pass
+
+        cta = self.page.get_by_role("button", name=re.compile(r"let.?s go", re.IGNORECASE))
         try:
-            # This onboarding CTA can arrive late after the authenticated shell paints on slower runs.
-            cta.wait_for(state="visible", timeout=PW_NAVIGATION_TIMEOUT_MS)
-        except PlaywrightTimeoutError:
+            cta.first.wait_for(state="visible", timeout=PW_DEFAULT_TIMEOUT_MS)
+        except (PlaywrightTimeoutError, PlaywrightError):
             return
         else:
-            cta.click(timeout=PW_DEFAULT_TIMEOUT_MS)
+            cta.first.click(timeout=PW_DEFAULT_TIMEOUT_MS)
+            self.page.wait_for_load_state("domcontentloaded")
 
     def expect_create_a_poster_visible(self) -> None:
         self.set_step("Wait for Create a poster option")
