@@ -33,8 +33,8 @@ class LandingPage(BasePage):
         self.set_step("Handle Let's go prompt")
         student_name = re.compile(r"i.?m a student", re.IGNORECASE)
         student_options = [
-            self.page.get_by_role("checkbox", name=student_name),
-            self.page.get_by_role("radio", name=student_name),
+            self.page.get_by_text("I’m a student", exact=True).last,
+            self.page.get_by_text("I’m a student").last,
         ]
         for student_option in student_options:
             try:
