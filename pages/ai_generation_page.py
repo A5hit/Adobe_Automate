@@ -17,7 +17,7 @@ class AiGenerationPage(BasePage):
 
     def wait_until_ready(self) -> None:
         self.set_step("Wait for AI entry on landing page")
-        self.page.wait_for_load_state("domcontentloaded")
+        self.page.wait_for_load_state("load")
         # The landing shell can paint before the create cards hydrate, so gate on the AI entry itself.
         expect(self._ai_entry()).to_be_visible(timeout=PW_LONG_TIMEOUT_MS)
 
@@ -27,7 +27,7 @@ class AiGenerationPage(BasePage):
         ai_option = self._ai_entry()
         # expect(ai_option).to_be_visible(timeout=PW_NAVIGATION_TIMEOUT_MS)
         ai_option.click(timeout=PW_DEFAULT_TIMEOUT_MS)
-        self.page.wait_for_load_state("domcontentloaded")
+        self.page.wait_for_load_state("load")
         try:
             self.page.wait_for_load_state("networkidle", timeout=PW_LONG_TIMEOUT_MS)
         except PlaywrightTimeoutError:
@@ -50,7 +50,7 @@ class AiGenerationPage(BasePage):
 
     def wait_for_generation_page_ready(self) -> None:
         self.set_step("Wait for AI generation page to finish loading")
-        self.page.wait_for_load_state("domcontentloaded",timeout=PW_NAVIGATION_TIMEOUT_MS)
+        self.page.wait_for_load_state("load",timeout=PW_NAVIGATION_TIMEOUT_MS)
         try:
             self.page.wait_for_load_state("networkidle", timeout=PW_NAVIGATION_TIMEOUT_MS)
         except PlaywrightTimeoutError:
