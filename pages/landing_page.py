@@ -15,6 +15,8 @@ from settings import (
 class LandingPage(BasePage):
     """Entry page interactions for the initial onboarding flow."""
 
+    LETS_GO_TIMEOUT_MS = 7_000
+
     def open(self) -> None:
         self.set_step("Open Adobe Express landing page")
         self.page.goto("https://new.express.adobe.com/")
@@ -28,16 +30,18 @@ class LandingPage(BasePage):
                 "Complete the login flow before running the authenticated scenario."
             )
 
-    def click_lets_go(self) -> None:
+    def click_lets_go(self) -> bool:
         self.set_step("Handle Let's go prompt")
+        self.page.wait_for_load_state("load")
         cta = self.page.get_by_text("Let\u2019s go", exact=True)
         try:
-            # This onboarding CTA can arrive late after the authenticated shell paints on slower runs.
-            cta.wait_for(state="visible", timeout=PW_NAVIGATION_TIMEOUT_MS)
+            cta.wait_for(state="visible", timeout=self.LETS_GO_TIMEOUT_MS)
         except PlaywrightTimeoutError:
-            return
+            self.set_step("Let's go prompt not shown; login marked complete")
+            return False
         else:
             cta.click(timeout=PW_DEFAULT_TIMEOUT_MS)
+            return True
 
     def expect_create_a_poster_visible(self) -> None:
         self.set_step("Wait for Create a poster option")
