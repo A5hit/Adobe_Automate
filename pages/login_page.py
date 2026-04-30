@@ -151,27 +151,32 @@ class LoginPage(BasePage):
         expect(password_next_button).to_be_visible(timeout=PW_DEFAULT_TIMEOUT_MS)
         password_next_button.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
 
-        # Optional: Google identity verification prompt (#confirm)
-        confirm_btn = self.page.locator("#confirm")
-        if confirm_btn.is_visible(timeout=2_000):
-            self.set_step("Handle Google verification prompt")
-            confirm_btn.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+        self._handle_google_optional_prompts()
 
-        # Optional: Google "Continue" prompt (account chooser / consent screen)
-        continue_btn = self.page.get_by_text("Continue", exact=True)
-        if continue_btn.is_visible(timeout=2_000):
-            self.set_step("Handle Google continue prompt")
-            continue_btn.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
+    def _handle_google_optional_prompts(self) -> None:
+        prompt_candidates = [
+            (
+                "Handle Google verification prompt",
+                self.page.locator("#confirm"),
+            ),
+            (
+                "Handle Google understand prompt",
+                self.page.get_by_role("button", name=re.compile(r"^I understand$", re.IGNORECASE)),
+            ),
+            (
+                "Handle Google continue prompt",
+                self.page.get_by_role("button", name=re.compile(r"^Continue$", re.IGNORECASE)),
+            ),
+        ]
 
-        # # Handle the extra Google verification prompt if it appears.
-        self.set_step("Handle Google verification prompt")
-        confirm_btn = self.page.locator("#confirm")
-        if confirm_btn.is_visible(timeout=2_000):
-            self.set_step("Handle Google verification prompt")
-            confirm_btn.click(timeout=PW_DEFAULT_TIMEOUT_MS, delay=500)
-        #
-        # # Handle the final Google continue prompt if it appears.
-        self.set_step("Handle Google continue prompt")
-        continue_btn = self.page.get_by_text("Continue", exact=True)
-        if try_click(continue_btn, timeout=4000):
-            self.set_step("Handled Google continue prompt")
+        for _ in range(3):
+            handled_prompt = False
+            for step, locator in prompt_candidates:
+                self.set_step(step)
+                if try_click(locator.first, timeout=4_000):
+                    handled_prompt = True
+                    self.page.wait_for_timeout(500)
+                    break
+
+            if not handled_prompt:
+                return
